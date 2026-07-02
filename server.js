@@ -13,7 +13,12 @@ const app = express();
 
 connectDB();
 
-app.use(cors());
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  exposedHeaders: ["Content-Disposition", "Content-Type"],
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

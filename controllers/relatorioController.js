@@ -1,7 +1,7 @@
 import Procedimento from "../models/procedimentoModel.js";
 import Paciente from "../models/pacienteModel.js";
 import { sendEmail, buildCompleteReportHTML, buildParticularReportHTML, buildPlanoSaudeReportHTML } from "../utils/emailUtils.js";
-import { buildPDFHTML, generatePDFBuffer } from "../utils/pdfUtils.js";
+import { buildPDFHTML, generatePDFBuffer, generatePDFPlanoSaudeBuffer } from "../utils/pdfUtils.js";
 
 const parsePeriod = (req) => {
   const now = new Date();
@@ -151,6 +151,19 @@ export const downloadRelatorioPDF = async (req, res, next) => {
     const buffer = await generatePDFBuffer(data);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", "attachment; filename=relatorio.pdf");
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const downloadRelatorioPDFPlanoSaude = async (req, res, next) => {
+  try {
+    const period = parsePeriod(req);
+    const data = await aggregateData(req.user, period);
+    const buffer = await generatePDFPlanoSaudeBuffer(data);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", "attachment; filename=relatorio-plano-saude.pdf");
     res.send(buffer);
   } catch (err) {
     next(err);

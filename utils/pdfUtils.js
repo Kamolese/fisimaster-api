@@ -101,3 +101,88 @@ export const generatePDFBuffer = async (data) => {
 
   return Buffer.from(doc.output("arraybuffer"));
 };
+
+export const generatePDFPlanoSaudeBuffer = async (data) => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 15;
+  let yPosition = margin;
+
+  doc.setFontSize(14);
+  doc.text("Relatório de Produção Planos de Saúde - FisiMaster", pageWidth / 2, yPosition, { align: "center" });
+  yPosition += 8;
+
+  doc.setFontSize(10);
+  doc.text(`Período: ${formatDMY(data.periodoInicio)} até ${formatDMY(data.periodoFim)}`, pageWidth / 2, yPosition, { align: "center" });
+  yPosition += 12;
+
+  doc.setFontSize(11);
+  doc.text("Resumo", margin, yPosition);
+  yPosition += 8;
+
+  const summaryData = [
+    ["Procedimentos Planos de Saúde:", String(data.procedimentosPlanosCount || 0)],
+    ["Produção Planos de Saúde:", currency(data.totalPlanoSaudeMultiplicado || 0)],
+    ["Evoluções Planos de Saúde:", String(data.evolucoesPlanosCount || 0)],
+    ["Pacientes Atendidos:", String(data.pacientesPlanosAtendidos || 0)],
+  ];
+
+  doc.autoTable({
+    head: [["Descrição", "Valor"]],
+    body: summaryData,
+    startY: yPosition,
+    margin: margin,
+    styles: {
+      fontSize: 9,
+      cellPadding: 3,
+    },
+    headStyles: {
+      fillColor: [41, 128, 185],
+      textColor: 255,
+      fontStyle: "bold",
+    },
+    columnStyles: {
+      0: { halign: "left" },
+      1: { halign: "right" },
+    },
+  });
+
+  yPosition = doc.lastAutoTable.finalY + 10;
+
+  doc.setFontSize(11);
+  doc.text("Procedimentos Planos de Saúde Detalhados", margin, yPosition);
+  yPosition += 8;
+
+  const tableData = (data.detalhesPlanos || []).map((d) => [
+    d.paciente || "",
+    d.planoSaude || "",
+    formatDMY(d.primeiroProcedimento) || "",
+    formatDMY(d.ultimoProcedimento) || "",
+    String(d.procedimentosPlanos || 0),
+    String(d.evolucoesPlanos || 0),
+  ]);
+
+  if (tableData.length > 0) {
+    doc.autoTable({
+      head: [["Paciente", "Plano de Saúde", "Primeiro", "Último", "Procedimentos", "Evoluções"]],
+      body: tableData,
+      startY: yPosition,
+      margin: margin,
+      styles: {
+        fontSize: 8,
+        cellPadding: 3,
+        overflow: "linebreak",
+      },
+      headStyles: {
+        fillColor: [41, 128, 185],
+        textColor: 255,
+        fontStyle: "bold",
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245],
+      },
+    });
+  }
+
+  return Buffer.from(doc.output("arraybuffer"));
+};
