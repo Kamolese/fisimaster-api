@@ -1,5 +1,5 @@
-import { existsSync } from "node:fs";
-import puppeteer from "puppeteer";
+import { jsPDF } from "jspdf";
+import "jspdf-autotable";
 
 const currency = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
 const formatDMY = (ymd) => {
@@ -45,32 +45,57 @@ export const buildPDFHTML = (data) => {
 };
 
 export const generatePDFBuffer = async (html) => {
-  const executablePath = getChromeExecutablePath();
-  const browser = await puppeteer.launch({
-    ...(executablePath ? { executablePath } : {}),
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
-    headless: "new",
+  const doc = new jsPDF();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 10;
+  let yPosition = margin;
+
+  doc.setFontSize(16);
+  doc.text("Relatório Completo (PDF)", pageWidth / 2, yPosition, { align: "center" });
+  yPosition += 15;
+
+  doc.setFontSize(10);
+  const lines = html.match(/<p>(.*?)<\/p>/g) || [];
+  lines.forEach((line) => {
+    const text = line.replace(/<\/?p>/g, "");
+    if (yPosition > pageHeight - margin) {
+      doc.addPage();
+      yPosition = margin;
+    }
+    doc.text(text, margin, yPosition);
+    yPosition += 8;
   });
 
-  try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
-    return await page.pdf({ format: "A4", printBackground: true });
-  } finally {
-    await browser.close();
+  yPosition += 5;
+  const tableMatch = html.match(/<tbody>(.*?)<\/tbody>/s);
+  if (tableMatch) {
+    const tableData = [];
+    const headerMatch = html.match(/<thead>(.*?)<\/thead>/);
+    if (headerMatch) {
+      const headers = headerMatch[1].match(/<th>(.*?)<\/th>/g);
+      tableData.push(headers.map((h) => h.replace(/<\/?th>/g, "")));
+    }
+
+    const rowMatches = tableMatch[1].match(/<tr>(.*?)<\/tr>/g) || [];
+    rowMatches.forEach((row) => {
+      const cells = row.match(/<td>(.*?)<\/td>/g);
+      if (cells) {
+        tableData.push(cells.map((cell) => cell.replace(/<\/?td>/g, "")));
+      }
+    });
+
+    if (tableData.length > 0) {
+      doc.autoTable({
+        head: [tableData[0]],
+        body: tableData.slice(1),
+        startY: yPosition,
+        margin: margin,
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+      });
+    }
   }
-};
 
-const getChromeExecutablePath = () => {
-  const configuredPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_PATH;
-  if (configuredPath) return configuredPath;
-
-  const linuxCandidates = [
-    "/usr/bin/google-chrome-stable",
-    "/usr/bin/google-chrome",
-    "/usr/bin/chromium-browser",
-    "/usr/bin/chromium",
-  ];
-
-  return linuxCandidates.find((candidate) => existsSync(candidate));
+  return doc.output("arraybuffer");
 };

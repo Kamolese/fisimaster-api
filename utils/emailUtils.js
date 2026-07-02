@@ -16,9 +16,17 @@ const createTransport = () => {
 
 export const sendEmail = async (to, subject, html) => {
   const transporter = createTransport();
-  await transporter.verify();
-  const info = await transporter.sendMail({ from: process.env.EMAIL_USER, to, subject, html });
-  return info;
+  try {
+    await transporter.verify();
+  } catch (err) {
+    throw new Error(`Erro ao conectar com servidor SMTP: ${err.message}. Verifique EMAIL_HOST, EMAIL_USER e EMAIL_PASS.`);
+  }
+  try {
+    const info = await transporter.sendMail({ from: process.env.EMAIL_USER, to, subject, html });
+    return info;
+  } catch (err) {
+    throw new Error(`Erro ao enviar email: ${err.message}`);
+  }
 };
 
 const currency = (v) => {
