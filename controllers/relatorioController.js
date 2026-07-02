@@ -95,80 +95,103 @@ const aggregateData = async (user, period) => {
   };
 };
 
-export const getRelatorios = async (req, res) => {
-  const period = parsePeriod(req);
-  const data = await aggregateData(req.user, period);
-  res.json(data);
-};
-
-export const sendRelatorioCompleto = async (req, res) => {
-  const period = parsePeriod(req);
-  const data = await aggregateData(req.user, period);
-  const html = buildCompleteReportHTML(data);
-  const to = req.body.to || req.user.email;
-  const info = await sendEmail(to, "Relatório Completo", html);
-  res.json({ message: "E-mail enviado", id: info.messageId });
-};
-
-export const sendRelatorioParticular = async (req, res) => {
-  const period = parsePeriod(req);
-  const data = await aggregateData(req.user, period);
-  const html = buildParticularReportHTML(data);
-  const to = req.body.to || req.user.email;
-  const info = await sendEmail(to, "Relatório Particular", html);
-  res.json({ message: "E-mail enviado", id: info.messageId });
-};
-
-export const sendRelatorioPlanoSaude = async (req, res) => {
-  const period = parsePeriod(req);
-  const data = await aggregateData(req.user, period);
-  const html = buildPlanoSaudeReportHTML(data);
-  const to = req.body.to || req.user.email;
-  const info = await sendEmail(to, "Relatório Planos de Saúde", html);
-  res.json({ message: "E-mail enviado", id: info.messageId });
-};
-
-export const downloadRelatorioPDF = async (req, res) => {
-  const period = parsePeriod(req);
-  const data = await aggregateData(req.user, period);
-  const html = buildPDFHTML(data);
-  const buffer = await generatePDFBuffer(html);
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", "attachment; filename=relatorio.pdf");
-  res.send(buffer);
-};
-
-export const getRelatorioMensal = async (req, res) => {
-  const now = new Date();
-  const year = parseInt(req.query.year || now.getUTCFullYear(), 10);
-  const start = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0));
-  const end = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
-  const match = {
-    dataRealizacao: { $gte: start, $lte: end },
-  };
-  if (req.user.role !== "admin") {
-    match.fisioterapeuta = req.user._id;
+export const getRelatorios = async (req, res, next) => {
+  try {
+    const period = parsePeriod(req);
+    const data = await aggregateData(req.user, period);
+    res.json(data);
+  } catch (err) {
+    next(err);
   }
-  const pipeline = [
-    { $match: match },
-    {
-      $group: {
-        _id: { m: { $month: "$dataRealizacao" }, y: { $year: "$dataRealizacao" } },
-        particularSum: { $sum: { $cond: [{ $eq: ["$planoSaude", "PARTICULAR"] }, "$valorPlano", 0] } },
-        planosSum: { $sum: { $cond: [{ $ne: ["$planoSaude", "PARTICULAR"] }, "$valorPlano", 0] } },
+};
+
+export const sendRelatorioCompleto = async (req, res, next) => {
+  try {
+    const period = parsePeriod(req);
+    const data = await aggregateData(req.user, period);
+    const html = buildCompleteReportHTML(data);
+    const to = req.body.to || req.user.email;
+    const info = await sendEmail(to, "Relatório Completo", html);
+    res.json({ message: "E-mail enviado", id: info.messageId });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const sendRelatorioParticular = async (req, res, next) => {
+  try {
+    const period = parsePeriod(req);
+    const data = await aggregateData(req.user, period);
+    const html = buildParticularReportHTML(data);
+    const to = req.body.to || req.user.email;
+    const info = await sendEmail(to, "Relatório Particular", html);
+    res.json({ message: "E-mail enviado", id: info.messageId });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const sendRelatorioPlanoSaude = async (req, res, next) => {
+  try {
+    const period = parsePeriod(req);
+    const data = await aggregateData(req.user, period);
+    const html = buildPlanoSaudeReportHTML(data);
+    const to = req.body.to || req.user.email;
+    const info = await sendEmail(to, "Relatório Planos de Saúde", html);
+    res.json({ message: "E-mail enviado", id: info.messageId });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const downloadRelatorioPDF = async (req, res, next) => {
+  try {
+    const period = parsePeriod(req);
+    const data = await aggregateData(req.user, period);
+    const buffer = await generatePDFBuffer(data);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", "attachment; filename=relatorio.pdf");
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getRelatorioMensal = async (req, res, next) => {
+  try {
+    const now = new Date();
+    const year = parseInt(req.query.year || now.getUTCFullYear(), 10);
+    const start = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0));
+    const end = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+    const match = {
+      dataRealizacao: { $gte: start, $lte: end },
+    };
+    if (req.user.role !== "admin") {
+      match.fisioterapeuta = req.user._id;
+    }
+    const pipeline = [
+      { $match: match },
+      {
+        $group: {
+          _id: { m: { $month: "$dataRealizacao" }, y: { $year: "$dataRealizacao" } },
+          particularSum: { $sum: { $cond: [{ $eq: ["$planoSaude", "PARTICULAR"] }, "$valorPlano", 0] } },
+          planosSum: { $sum: { $cond: [{ $ne: ["$planoSaude", "PARTICULAR"] }, "$valorPlano", 0] } },
+        },
       },
-    },
-    { $sort: { "_id.y": 1, "_id.m": 1 } },
-  ];
-  const agg = await Procedimento.aggregate(pipeline);
-  const months = Array.from({ length: 12 }, (_, i) => ({ month: i + 1, particular: 0, planos: 0 }));
-  agg.forEach((r) => {
-    const idx = r._id.m - 1;
-    months[idx] = { month: r._id.m, particular: r.particularSum, planos: r.planosSum };
-  });
-  const labels = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-  const particular = months.map((m) => m.particular);
-  const planosMultiplicado = months.map((m) => m.planos * 5);
-  const total = months.map((_, i) => particular[i] + planosMultiplicado[i]);
-  res.json({ year, labels, particular, planosMultiplicado, total });
+      { $sort: { "_id.y": 1, "_id.m": 1 } },
+    ];
+    const agg = await Procedimento.aggregate(pipeline);
+    const months = Array.from({ length: 12 }, (_, i) => ({ month: i + 1, particular: 0, planos: 0 }));
+    agg.forEach((r) => {
+      const idx = r._id.m - 1;
+      months[idx] = { month: r._id.m, particular: r.particularSum, planos: r.planosSum };
+    });
+    const labels = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+    const particular = months.map((m) => m.particular);
+    const planosMultiplicado = months.map((m) => m.planos * 5);
+    const total = months.map((_, i) => particular[i] + planosMultiplicado[i]);
+    res.json({ year, labels, particular, planosMultiplicado, total });
+  } catch (err) {
+    next(err);
+  }
 };
