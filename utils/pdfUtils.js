@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import puppeteer from "puppeteer";
 
 const currency = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
@@ -44,10 +45,32 @@ export const buildPDFHTML = (data) => {
 };
 
 export const generatePDFBuffer = async (html) => {
-  const browser = await puppeteer.launch({ args: ["--no-sandbox", "--disable-setuid-sandbox"], headless: "new" });
-  const page = await browser.newPage();
-  await page.setContent(html, { waitUntil: "networkidle0" });
-  const buffer = await page.pdf({ format: "A4", printBackground: true });
-  await browser.close();
-  return buffer;
+  const executablePath = getChromeExecutablePath();
+  const browser = await puppeteer.launch({
+    ...(executablePath ? { executablePath } : {}),
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+    headless: "new",
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    return await page.pdf({ format: "A4", printBackground: true });
+  } finally {
+    await browser.close();
+  }
+};
+
+const getChromeExecutablePath = () => {
+  const configuredPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_PATH;
+  if (configuredPath) return configuredPath;
+
+  const linuxCandidates = [
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chromium",
+  ];
+
+  return linuxCandidates.find((candidate) => existsSync(candidate));
 };
